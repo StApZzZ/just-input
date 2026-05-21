@@ -35,12 +35,12 @@ impl HotkeyHandle {
 #[cfg(windows)]
 mod platform {
     use std::{
+        ptr::null_mut,
         sync::{
             atomic::{AtomicBool, Ordering},
             mpsc::{self, Sender},
             Arc,
         },
-        ptr::null_mut,
         thread::{self, JoinHandle},
         time::Duration,
     };
@@ -70,8 +70,7 @@ mod platform {
 
             let join = thread::spawn(move || {
                 let modifiers = MOD_CONTROL | MOD_ALT | MOD_NOREPEAT;
-                let registered =
-                    unsafe { RegisterHotKey(null_mut(), HOTKEY_ID, modifiers, VK_J) };
+                let registered = unsafe { RegisterHotKey(null_mut(), HOTKEY_ID, modifiers, VK_J) };
 
                 if registered == 0 {
                     let _ = ready_tx.send(Err(HotkeyError::RegisterFailed(

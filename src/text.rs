@@ -72,4 +72,11 @@ mod tests {
             vec![InputUnit::Unicode(vec![0xD83D, 0xDE42])]
         );
     }
+
+    #[test]
+    fn smoke_command_maps_to_one_unit_per_char() {
+        let cmd = r#"echo 'AZaz09 :;$()_+-=<>/|\""#;
+        let units = prepare_text(cmd);
+        assert_eq!(units.len(), cmd.chars().count());
+    }
 }
