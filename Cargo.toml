@@ -1,0 +1,22 @@
+[package]
+name = "just-input"
+version = "0.1.0"
+edition = "2021"
+description = "Tiny Windows-first utility that types text into the active window without using the clipboard."
+license = "Apache-2.0"
+
+[dependencies]
+eframe = "0.27"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true
