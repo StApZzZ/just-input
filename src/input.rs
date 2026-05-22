@@ -20,9 +20,16 @@ impl fmt::Display for TypeError {
 
 impl Error for TypeError {}
 
-pub fn type_text(text: &str, interval: Duration) -> Result<(), TypeError> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Layout {
+    #[default]
+    EnUs,
+    RuQwerty,
+}
+
+pub fn type_text(text: &str, interval: Duration, layout: Layout) -> Result<(), TypeError> {
     for unit in prepare_text(text) {
-        platform::send_unit(&unit)?;
+        platform::send_unit(&unit, layout)?;
 
         if !interval.is_zero() {
             thread::sleep(interval);
@@ -46,13 +53,13 @@ mod platform {
 
     use super::TypeError;
 
-    pub fn send_unit(unit: &InputUnit) -> Result<(), TypeError> {
+    pub fn send_unit(unit: &InputUnit, layout: super::Layout) -> Result<(), TypeError> {
         match unit {
             InputUnit::Unicode(code_units) => {
                 if let [cu] = code_units.as_slice() {
                     if *cu < 128 {
                         let ch = *cu as u8 as char;
-                        if let Some((vk, shift)) = ascii_to_vk(ch) {
+                        if let Some((vk, shift)) = ascii_to_vk(ch, layout) {
                             return send_vk_char(vk, shift);
                         }
                     }
@@ -136,7 +143,14 @@ mod platform {
         }
     }
 
-    fn ascii_to_vk(ch: char) -> Option<(u16, bool)> {
+    fn ascii_to_vk(ch: char, layout: super::Layout) -> Option<(u16, bool)> {
+        match layout {
+            super::Layout::EnUs => ascii_to_vk_en(ch),
+            super::Layout::RuQwerty => ascii_to_vk_ru(ch),
+        }
+    }
+
+    fn ascii_to_vk_en(ch: char) -> Option<(u16, bool)> {
         Some(match ch {
             ' ' => (VK_SPACE, false),
             '!' => (0x31, true),
@@ -177,6 +191,36 @@ mod platform {
             _ => return None,
         })
     }
+
+    fn ascii_to_vk_ru(ch: char) -> Option<(u16, bool)> {
+        Some(match ch {
+            // Same physical key + modifier as EN-US
+            ' ' => (VK_SPACE, false),
+            '!' => (0x31, true),
+            '%' => (0x35, true),
+            '(' => (0x39, true),
+            ')' => (0x30, true),
+            '*' => (0x38, true),
+            '-' => (VK_OEM_MINUS, false),
+            '_' => (VK_OEM_MINUS, true),
+            '=' => (VK_OEM_PLUS, false),
+            '+' => (VK_OEM_PLUS, true),
+            '\\' => (VK_OEM_5, false),
+            '0'..='9' => (ch as u16, false),
+            'A'..='Z' => (ch as u16, true),
+            'a'..='z' => (ch as u16 - 0x20, false),
+            // Different from EN-US
+            '"' => (0x32, true),      // Shift+2
+            ';' => (0x34, true),      // Shift+4
+            ':' => (0x36, true),      // Shift+6
+            '?' => (0x37, true),      // Shift+7
+            '.' => (VK_OEM_2, false), // / key = . on RU
+            ',' => (VK_OEM_2, true),  // Shift+/ = , on RU
+            '/' => (VK_OEM_5, true),  // Shift+\ = / on RU
+            // Not on standard RU layout → Unicode fallback
+            _ => return None,
+        })
+    }
 }
 
 #[cfg(not(windows))]
@@ -185,7 +229,7 @@ mod platform {
 
     use super::TypeError;
 
-    pub fn send_unit(_unit: &InputUnit) -> Result<(), TypeError> {
+    pub fn send_unit(_unit: &InputUnit, _layout: super::Layout) -> Result<(), TypeError> {
         Err(TypeError::UnsupportedPlatform)
     }
 }

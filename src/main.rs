@@ -28,7 +28,8 @@ fn run() -> Result<(), String> {
             if !options.delay.is_zero() {
                 thread::sleep(options.delay);
             }
-            input::type_text(&options.text, options.interval).map_err(|error| error.to_string())?;
+            input::type_text(&options.text, options.interval, options.layout)
+                .map_err(|error| error.to_string())?;
         }
     }
 

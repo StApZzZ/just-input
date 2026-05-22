@@ -12,7 +12,7 @@ use eframe::egui;
 
 use crate::{
     hotkey::{HotkeyHandle, HOTKEY_LABEL},
-    input,
+    input::{self, Layout},
 };
 
 const DEFAULT_DELAY_SECS: f32 = 3.0;
@@ -33,6 +33,7 @@ pub struct JustInputApp {
     text: String,
     delay_secs: f32,
     interval_ms: u64,
+    layout: Layout,
     status: String,
     pending: Option<PendingJob>,
     typing: bool,
@@ -50,6 +51,7 @@ impl Default for JustInputApp {
             text: String::new(),
             delay_secs: DEFAULT_DELAY_SECS,
             interval_ms: DEFAULT_INTERVAL_MS,
+            layout: Layout::default(),
             status: "Ready".to_owned(),
             pending: None,
             typing: false,
@@ -106,6 +108,7 @@ impl JustInputApp {
         let thread_cancel = Arc::clone(&cancel);
         let text = self.text.clone();
         let interval = Duration::from_millis(self.interval_ms);
+        let layout = self.layout;
         let deadline = Instant::now() + delay;
         let tx = self.ui_tx.clone();
 
@@ -127,7 +130,8 @@ impl JustInputApp {
             }
 
             let _ = tx.send(UiMessage::TypingStarted);
-            let result = input::type_text(&text, interval).map_err(|error| error.to_string());
+            let result =
+                input::type_text(&text, interval, layout).map_err(|error| error.to_string());
             let _ = tx.send(UiMessage::TypingFinished(result));
         });
 
@@ -245,6 +249,14 @@ impl eframe::App for JustInputApp {
                         .speed(1)
                         .suffix(" ms"),
                 );
+            });
+
+            ui.add_space(8.0);
+
+            ui.horizontal(|ui| {
+                ui.label("Keyboard");
+                ui.radio_value(&mut self.layout, Layout::EnUs, "EN");
+                ui.radio_value(&mut self.layout, Layout::RuQwerty, "RU");
             });
 
             ui.add_space(8.0);

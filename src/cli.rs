@@ -1,5 +1,7 @@
 use std::{ffi::OsString, fs, path::PathBuf, time::Duration};
 
+use crate::input::Layout;
+
 #[derive(Debug)]
 pub enum CliAction {
     Gui,
@@ -12,6 +14,7 @@ pub struct TypeOptions {
     pub text: String,
     pub delay: Duration,
     pub interval: Duration,
+    pub layout: Layout,
 }
 
 pub fn parse_args<I>(args: I) -> Result<CliAction, String>
@@ -28,6 +31,7 @@ where
     let mut file: Option<PathBuf> = None;
     let mut delay = Duration::from_secs(3);
     let mut interval = Duration::from_millis(10);
+    let mut layout = Layout::EnUs;
 
     while let Some(arg) = args.next() {
         let arg = arg
@@ -48,6 +52,14 @@ where
             "--interval-ms" => {
                 interval = Duration::from_millis(parse_u64(&mut args, "--interval-ms")?);
             }
+            "--layout" => {
+                let val = next_value(&mut args, "--layout")?;
+                layout = match val.as_str() {
+                    "en" | "en-us" => Layout::EnUs,
+                    "ru" => Layout::RuQwerty,
+                    other => return Err(format!("unknown layout: {other}; use 'en' or 'ru'")),
+                };
+            }
             unknown => return Err(format!("unknown argument: {unknown}")),
         }
     }
@@ -58,12 +70,14 @@ where
             text,
             delay,
             interval,
+            layout,
         })),
         (None, Some(file)) => Ok(CliAction::Type(TypeOptions {
             text: fs::read_to_string(&file)
                 .map_err(|error| format!("failed to read {}: {error}", file.display()))?,
             delay,
             interval,
+            layout,
         })),
         (None, None) => Err("CLI mode needs --text or --file; omit arguments for GUI".to_owned()),
     }
@@ -80,6 +94,7 @@ Options:\n\
   --file <PATH>          UTF-8 file to type after the delay\n\
   --delay <SECONDS>      Delay before typing, default 3\n\
   --interval-ms <MS>     Pause between characters, default 10\n\
+  --layout <LAYOUT>      Remote keyboard layout: en (default) or ru\n\
   -h, --help             Show this help\n"
 }
 
@@ -121,6 +136,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{parse_args, CliAction};
+    use crate::input::Layout;
     use std::{ffi::OsString, time::Duration};
 
     fn args(values: &[&str]) -> Vec<OsString> {
@@ -149,6 +165,7 @@ mod tests {
                 assert_eq!(options.text, "hello");
                 assert_eq!(options.delay, Duration::from_secs_f32(1.5));
                 assert_eq!(options.interval, Duration::from_millis(25));
+                assert_eq!(options.layout, Layout::EnUs);
             }
             _ => panic!("expected type action"),
         }
@@ -157,5 +174,28 @@ mod tests {
     #[test]
     fn rejects_text_and_file_together() {
         assert!(parse_args(args(&["--text", "hello", "--file", "input.txt"])).is_err());
+    }
+
+    #[test]
+    fn parses_layout_ru() {
+        let action = parse_args(args(&["--text", "hi", "--layout", "ru"])).unwrap();
+        match action {
+            CliAction::Type(options) => assert_eq!(options.layout, Layout::RuQwerty),
+            _ => panic!("expected type action"),
+        }
+    }
+
+    #[test]
+    fn parses_layout_en_us() {
+        let action = parse_args(args(&["--text", "hi", "--layout", "en-us"])).unwrap();
+        match action {
+            CliAction::Type(options) => assert_eq!(options.layout, Layout::EnUs),
+            _ => panic!("expected type action"),
+        }
+    }
+
+    #[test]
+    fn rejects_unknown_layout() {
+        assert!(parse_args(args(&["--text", "hi", "--layout", "de"])).is_err());
     }
 }
